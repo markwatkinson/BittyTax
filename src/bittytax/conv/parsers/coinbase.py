@@ -255,7 +255,7 @@ def _do_parse_coinbase(
             wallet=WALLET,
         )
     elif row_dict["Transaction Type"] in ("Buy", "Advanced Trade Buy", "Advance Trade Buy"):
-        currency, quote = _get_currency(row_dict["Notes"])
+        currency, quote, amount = _get_currency(row_dict["Notes"])
         if currency is None:
             raise UnexpectedContentError(
                 parser.in_header.index("Notes"), "Notes", row_dict["Notes"]
@@ -286,19 +286,22 @@ def _do_parse_coinbase(
                 wallet=WALLET,
             )
         else:
+            sell_quantity = subtotal
+            if row_dict["Transaction Type"] in ("Advanced Trade Buy", "Advance Trade Buy"):
+                sell_quantity = amount
             data_row.t_record = TransactionOutRecord(
                 TrType.TRADE,
                 data_row.timestamp,
                 buy_quantity=Decimal(row_dict["Quantity Transacted"]),
                 buy_asset=row_dict["Asset"],
-                sell_quantity=subtotal,
+                sell_quantity=sell_quantity,
                 sell_asset=currency,
                 fee_quantity=fees,
                 fee_asset=currency,
                 wallet=WALLET,
             )
     elif row_dict["Transaction Type"] in ("Sell", "Advanced Trade Sell", "Advance Trade Sell"):
-        currency, quote = _get_currency(row_dict["Notes"])
+        currency, quote, amount = _get_currency(row_dict["Notes"])
         if currency is None:
             raise UnexpectedContentError(
                 parser.in_header.index("Notes"), "Notes", row_dict["Notes"]
@@ -314,10 +317,14 @@ def _do_parse_coinbase(
                 f"using {currency} instead\n"
             )
 
+        buy_quantity = subtotal
+        if row_dict["Transaction Type"] in ("Advanced Trade Sell", "Advance Trade Sell"):
+            buy_quantity = amount
+
         data_row.t_record = TransactionOutRecord(
             TrType.TRADE,
             data_row.timestamp,
-            buy_quantity=subtotal,
+            buy_quantity=buy_quantity,
             buy_asset=currency,
             sell_quantity=Decimal(row_dict["Quantity Transacted"]),
             sell_asset=row_dict["Asset"],
@@ -363,15 +370,16 @@ def _get_convert_info(notes: str) -> Optional[Tuple[Any, ...]]:
     return None
 
 
-def _get_currency(notes: str) -> Tuple[Optional[str], str]:
-    match = re.match(r".+for .?(?:[\d|,]+\.\d+|[\d|,]+) (\w{3})(?: on )?(\w+-\w+)?.*$", notes)
+def _get_currency(notes: str) -> Tuple[Optional[str], str, Decimal]:
+    match = re.match(r".+for .?([\d|,]+\.\d+|[\d|,]+) (\w{3})(?: on )?(\w+-\w+)?.*$", notes)
 
     if match:
-        currency = quote = match.group(1)
-        if match.group(2):
-            quote = match.group(2).split("-")[1]
-        return currency, quote
-    return None, ""
+        amount = Decimal(match.group(1))
+        currency = quote = match.group(2)
+        if match.group(3):
+            quote = match.group(3).split("-")[1]
+        return currency, quote, amount
+    return None, "", 0
 
 
 def parse_coinbase_transfers(
