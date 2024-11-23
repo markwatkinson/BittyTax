@@ -371,8 +371,7 @@ def _get_convert_info(notes: str) -> Optional[Tuple[Any, ...]]:
 
 
 def _get_currency(notes: str) -> Tuple[Optional[str], str, Decimal]:
-    match = re.match(r".+for .?([\d|,]+\.\d+|[\d|,]+) (\w{3})(?: on )?(\w+-\w+)?.*$", notes)
-
+    match = re.match(r".+for ([\d|,]+\.\d+|[\d|,]+) (\w{3,})(?: on )?(\w+-\w+)?.*$", notes)
     if match:
         amount = Decimal(match.group(1))
         currency = quote = match.group(2)
